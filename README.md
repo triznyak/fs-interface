@@ -49,7 +49,7 @@ import FS from 'fs-interface';
 const fileSystem = new FS('/topdir');
 
 // Store content
-fileSystem.store('filename1', 'a very long string1');
+await fileSystem.store('filename1', 'a very long string1');
 
 // Retrieve content
 const result = await fileSystem.get('filename1');
