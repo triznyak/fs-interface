@@ -1,4 +1,4 @@
-import * as fs from 'fs';
+import * as fs from 'fs/promises';
 import * as path from 'path';
 import { computeMD5Hash } from '../../utils/hash';
 
@@ -7,9 +7,7 @@ class FS {
 
     constructor(directory: string) {
         this.directory = directory;
-        if (!fs.existsSync(directory)) {
-            fs.mkdirSync(directory, { recursive: true });
-        }
+        this.ensureDirectoryExists();
     }
 
     /**
@@ -18,19 +16,20 @@ class FS {
      * @param filename - The filename for the content.
      * @param content - The content to store.
      */
-    store(filename: string, content: string): void {
+    async store(filename: string, content: string): Promise<void> {
         const hash = computeMD5Hash(content);
         const filePath = path.join(this.directory, hash);
-        if (!fs.existsSync(filePath)) {
-            fs.writeFileSync(filePath, content);
+
+        try {
+            await fs.writeFile(filePath, content);
+
+            const mapping = await this.readMappingFile();
+            mapping[filename] = hash;
+
+            await this.writeMappingFile(mapping);
+        } catch (error) {
+            console.error('Error storing content:', error);
         }
-        let mapping: { [filename: string]: string } = {};
-        const mappingFilePath = path.join(this.directory, 'mapping.json');
-        if (fs.existsSync(mappingFilePath)) {
-            mapping = JSON.parse(fs.readFileSync(mappingFilePath, 'utf8'));
-        }
-        mapping[filename] = hash;
-        fs.writeFileSync(mappingFilePath, JSON.stringify(mapping));
     }
 
     /**
@@ -39,18 +38,61 @@ class FS {
      * @param filename - The filename to retrieve content for.
      * @returns The content of the file, or null if not found.
      */
-    get(filename: string): string | null {
-        const mappingFilePath = path.join(this.directory, 'mapping.json');
-        if (fs.existsSync(mappingFilePath)) {
-            const mapping = JSON.parse(fs.readFileSync(mappingFilePath, 'utf8'));
-            if (mapping[filename]) {
-                const contentFilePath = path.join(this.directory, mapping[filename]);
-                if (fs.existsSync(contentFilePath)) {
-                    return fs.readFileSync(contentFilePath, 'utf8');
-                }
+    async get(filename: string): Promise<string | null> {
+        const mapping = await this.readMappingFile();
+        const hash = mapping[filename];
+
+        if (hash) {
+            const contentFilePath = path.join(this.directory, hash);
+
+            try {
+                const content = await fs.readFile(contentFilePath, 'utf8');
+                return content;
+            } catch (error) {
+                console.error('Error getting content:', error);
             }
         }
+
         return null;
+    }
+    /**
+     * Ensures that the specified directory exists or creates it if it doesn't.
+     * If the directory already exists, this method does nothing.
+     */
+    private async ensureDirectoryExists(): Promise<void> {
+        try {
+            await fs.access(this.directory);
+        } catch (error) {
+            await fs.mkdir(this.directory, { recursive: true });
+        }
+    }
+    /**
+     * Reads the mapping file from disk and returns its content as a JavaScript object.
+     * If the mapping file does not exist, an empty object is returned.
+     */
+    private async readMappingFile(): Promise<{ [filename: string]: string }> {
+        const mappingFilePath = path.join(this.directory, 'mapping.json');
+
+        try {
+            const mappingContent = await fs.readFile(mappingFilePath, 'utf8');
+            return JSON.parse(mappingContent);
+        } catch (error) {
+            console.error('Mapping file does not exist');
+            return {};
+        }
+    }
+    /**
+     * Writes the provided mapping object to the mapping file on disk.
+     * If an error occurs during the write operation, it is logged.
+     */
+    private async writeMappingFile(mapping: { [filename: string]: string }): Promise<void> {
+        const mappingFilePath = path.join(this.directory, 'mapping.json');
+
+        try {
+            await fs.writeFile(mappingFilePath, JSON.stringify(mapping));
+        } catch (error) {
+            console.error('Error writing mapping file:', error);
+        }
     }
 }
 
