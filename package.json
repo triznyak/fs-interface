@@ -1,13 +1,13 @@
 {
   "name": "fs-interface",
   "version": "1.0.0",
-  "description": "",
+  "description": "A TypeScript-based interface for file storage optimization using content hashing",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
+  "author": "Kristóf Bába",
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^20.8.9",
